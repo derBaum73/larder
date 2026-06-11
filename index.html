@@ -103,6 +103,8 @@ h1,h2,h3{font-family:'Fraunces',Georgia,serif;font-weight:500;letter-spacing:-.0
 textarea{resize:vertical;min-height:80px;line-height:1.5}
 .footnote{font-size:12px;color:var(--ink2);text-align:center;margin:20px 0 8px;line-height:1.6}
 
+.toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%) translateY(8px);background:var(--ink);color:#fff;padding:10px 16px;border-radius:22px;font-size:13.5px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.18);opacity:0;transition:opacity .22s,transform .22s;pointer-events:none;z-index:80;max-width:80%;text-align:center}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .nav{position:fixed;bottom:0;left:0;right:0;background:rgba(246,241,233,.92);backdrop-filter:blur(10px);border-top:1px solid var(--line);display:flex;z-index:50}
 .nav button{flex:1;background:none;border:none;padding:10px 0 14px;display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--ink2);font-family:inherit;font-size:11px;font-weight:600;cursor:pointer}
 .nav button svg{width:23px;height:23px;stroke:currentColor;fill:none;stroke-width:1.7}
@@ -130,6 +132,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.5}
   <button data-view="more"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>More</button>
 </nav>
 <div class="wrap" id="app"></div>
+<div id="toast" class="toast"></div>
 
 <script>
 /* ---------- storage ---------- */
@@ -278,7 +281,7 @@ function renderPantry(){
   app.innerHTML=`
     <div class="card">
       <h2>Pantry <span class="pcount" style="font-weight:400;margin-left:6px">${pantryCount()} in stock</span></h2>
-      <div class="sub">Tap what you have. No quantities, just have or have-not. Keep it rough, that is the point.</div>
+      <div class="sub">Tap what you have. Tap again when something runs out — it jumps onto your shopping list automatically.</div>
       <div class="addbar"><input id="pAdd" list="vocab" placeholder="Add something not listed…" maxlength="40"><button class="btn" data-act="pantryAdd">Add</button></div>
     </div>
     <div class="card">${cats}</div>
@@ -341,6 +344,7 @@ Fold and steam"></textarea></div>
 /* ---------- helpers ---------- */
 function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function norm(s){return s.trim().toLowerCase();}
+function toast(msg){const el=document.getElementById('toast');if(!el)return;el.textContent=msg;el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),1700);}
 
 /* ---------- events ---------- */
 document.querySelector('.nav').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;view=b.dataset.view;openRecipe=null;render();});
@@ -351,7 +355,10 @@ document.body.addEventListener('click',e=>{
   else if(act==='closeRecipe'){openRecipe=null;render();}
   else if(act==='servPlus'){detailServes++;render();}
   else if(act==='servMinus'){detailServes=Math.max(1,detailServes-1);render();}
-  else if(act==='togglePantry'){const n=el.dataset.n;S.pantry[n]=!S.pantry[n];if(!S.pantry[n])delete S.pantry[n];persist();renderPantry();}
+  else if(act==='togglePantry'){const n=el.dataset.n;
+    if(S.pantry[n]){delete S.pantry[n];if(!S.shopping.find(x=>x.name===n)){S.shopping.push({name:n,bought:false,cat:'food'});toast(n+' → shopping list');}else{toast(n+' used up');}}
+    else{S.pantry[n]=true;const before=S.shopping.length;S.shopping=S.shopping.filter(x=>!(x.name===n&&!x.bought));if(S.shopping.length<before)toast(n+' — got it, off the list');}
+    persist();render();}
   else if(act==='pantryAdd'){const i=document.getElementById('pAdd'),v=norm(i.value);if(v){if(!ITEMS.find(x=>x[0]===v)&&!S.customItems.includes(v))S.customItems.push(v);S.pantry[v]=true;persist();renderPantry();}}
   else if(act==='shopAdd'){const i=document.getElementById('sAdd'),v=norm(i.value);if(v&&!S.shopping.find(x=>x.name===v)){S.shopping.push({name:v,bought:false,cat:'food'});persist();renderShop();}}
   else if(act==='shopAddHome'){const i=document.getElementById('sAddHome'),v=norm(i.value);if(v&&!S.shopping.find(x=>x.name===v)){S.shopping.push({name:v,bought:false,cat:'home'});persist();renderShop();}}
